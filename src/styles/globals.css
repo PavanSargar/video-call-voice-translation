@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-black;
+}
+
+.lk-username-container > #username {
+  @apply hidden;
+}
+
+.closed-captions-wrapper {
+  width: 100%;
+  position: absolute;
+  bottom: 20%;
+  display: flex;
+  justify-content: center;
+  z-index: 100;
+  font-size: 18px;
+}
+
+.closed-captions-container {
+  background: black;
+  color: white;
+  display: flex;
+  flex-direction: row;
+}
+
+.gradient-text {
+  @apply bg-gradient-to-r from-primary via-secondary to-tertiary bg-clip-text text-transparent;
+}
+
+.lk-join-button {
+  background: #6366f1 !important;
+}
+
+.lk-join-button:hover {
+  background: #4f46e5 !important;
+}
+.lk-video-conference {
+  @apply bg-black;
+}
+
+.lk-list,
+.lk-chat-form {
+  @apply bg-black;
+}
