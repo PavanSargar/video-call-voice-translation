@@ -29,7 +29,7 @@ const Captions: React.FC<Props> = ({
       console.info("transcriptionQueue", transcriptionQueue);
       if (transcriptionQueue.length > 0 && transcriptionQueue[0]?.message) {
         const res = await translate(transcriptionQueue[0].message, {
-          to: languageCode.split("-")[0],
+          to: languageCode.split("-")[0] || "en",
         });
         setCaption({
           message: res.text,
