@@ -32,6 +32,10 @@ const Home: NextPage = () => {
 
   const languageCodes = [
     {
+      language: "Kannada",
+      code: "kn-IN",
+    },
+    {
       language: "English",
       code: "en-US",
     },
@@ -50,6 +54,22 @@ const Home: NextPage = () => {
     {
       language: "Deutsch",
       code: "de-DE",
+    },
+    {
+      language: "Telugu",
+      code: "te-IN",
+    },
+    {
+      language: "Tamil",
+      code: "ta-IN",
+    },
+    {
+      language: "Spanish",
+      code: "es-ES",
+    },
+    {
+      language: "Chinese",
+      code: "zh-CN",
     },
   ];
 

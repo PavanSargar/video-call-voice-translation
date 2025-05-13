@@ -2,26 +2,58 @@ import { transliterate } from "transliteration";
 
 let lastSpokenText = "";
 
-const speakOut = async (text: string, isEmpty: boolean, lang?: string) => {
-  if (text === lastSpokenText) {
-    console.log("Skipping speaking text again:", text);
+/**
+ * Simple text-to-speech function that works across browsers
+ */
+const speakOut = (text: string, isEmpty: boolean, langCode?: string): void => {
+  // Skip if no text to speak
+  if (!text || text.trim() === "") return;
+
+  // Skip duplicates unless queue is empty
+  if (text === lastSpokenText && !isEmpty) {
+    console.log("Skipping duplicate text");
     return;
   }
 
+  // Reset tracking if queue is empty
   if (isEmpty) lastSpokenText = "";
 
-  console.log("speakOut function called with text:", text);
+  // Stop any current speech
+  try {
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel();
+    }
+  } catch (e) {
+    console.error("Error cancelling speech:", e);
+  }
 
-  let speech = new SpeechSynthesisUtterance();
-  speech.lang = lang || "en-US";
+  try {
+    // Create new utterance
+    const speech = new SpeechSynthesisUtterance();
 
-  let englishText = transliterate(text);
-  speech.text = englishText;
+    // Set language - default to English if none provided
+    speech.lang = langCode || "en-US";
 
-  console.log("SpeechSynthesisUtterance:", speech);
-  speechSynthesis.speak(speech);
+    // For certain languages, transliterate the text to improve speech
+    const nonLatinScripts = ["zh", "ja", "ko", "ar", "ru"];
+    const langBase = (langCode || "").split("-")[0];
 
-  lastSpokenText = text;
+    // Use transliteration for non-Latin scripts if needed
+    if (langBase && nonLatinScripts.includes(langBase)) {
+      speech.text = transliterate(text);
+    } else {
+      speech.text = text;
+    }
+
+    // Log and speak
+    console.log(`Speaking in ${speech.lang}: ${speech.text}`);
+    window.speechSynthesis.speak(speech);
+
+    // Track what we just said
+    lastSpokenText = text;
+  } catch (error) {
+    console.error("Speech synthesis error:", error);
+  }
 };
 
 export default speakOut;

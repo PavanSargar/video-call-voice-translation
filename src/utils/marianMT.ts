@@ -17,62 +17,54 @@ type TranslationOptions = {
   model?: string;
 };
 
+// Free and open translation API endpoint
+const LIBRE_TRANSLATE_API = "https://libretranslate.de/translate";
+// Google Translate API alternative (public API)
+const GOOGLE_TRANSLATE_API =
+  "https://translate.googleapis.com/translate_a/single";
+
 /**
- * Translates text using MarianMT API
- * This is a replacement for the Google Translate API
+ * Translates text using LibreTranslate API
+ * A free and open source alternative to commercial translation APIs
  */
 export async function translate(
   text: string,
   options: TranslationOptions
 ): Promise<TranslationResult> {
   try {
-    // Read configuration from environment variables
-    const apiEndpoint = process.env.MARIAN_MT_API_ENDPOINT;
-    const apiKey = process.env.MARIAN_MT_API_KEY;
-    const defaultModel = process.env.MARIAN_MT_DEFAULT_MODEL || "opus-mt";
-
-    if (!apiEndpoint) {
-      throw new Error(
-        "MARIAN_MT_API_ENDPOINT is not defined in environment variables"
-      );
+    if (!text || text.trim() === "") {
+      return {
+        text: "",
+        from: { language: { iso: options.from || "auto" } },
+        raw: {},
+      };
     }
 
-    // Prepare request data
+    // Prepare request data for LibreTranslate
     const requestData = {
-      text,
-      source_language: options.from || "auto",
-      target_language: options.to,
-      model: options.model || defaultModel,
-      format: options.format || "text",
+      q: text,
+      source: options.from || "auto",
+      target: options.to,
+      format: "text",
     };
-
-    // Set headers including API key if provided
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-
-    if (apiKey) {
-      headers["Authorization"] = `Bearer ${apiKey}`;
-    }
 
     // Make API request
-    const response = await axios.post(apiEndpoint, requestData, { headers });
+    const response = await axios.post(LIBRE_TRANSLATE_API, requestData, {
+      headers: { "Content-Type": "application/json" },
+    });
 
-    // Return in a format compatible with the previous Google Translate implementation
+    // Return in a consistent format
     return {
-      text:
-        response.data.translated_text ||
-        response.data.translatedText ||
-        response.data.text,
+      text: response.data.translatedText || text,
       from: {
         language: {
-          iso: response.data.detected_source_language || options.from || "auto",
+          iso: options.from || "auto",
         },
       },
       raw: response.data,
     };
   } catch (error) {
-    console.error("MarianMT translation error:", error);
+    console.error("Translation error:", error);
     // Fallback with original text to prevent application from breaking
     return {
       text: text,
@@ -86,73 +78,95 @@ export async function translate(
   }
 }
 
-// For browser usage with CORS support
-export function setCORS(corsProxy: string) {
+// For browser usage with direct API access (no CORS proxy needed for LibreTranslate)
+export function setCORS(corsProxy: string = "") {
   return async function translateWithCORS(
     text: string,
     options: TranslationOptions
   ): Promise<TranslationResult> {
     try {
-      // Read configuration from environment variables (if in browser, these should be NEXT_PUBLIC_*)
-      const apiEndpoint =
-        typeof window !== "undefined"
-          ? (window as any).__ENV?.NEXT_PUBLIC_MARIAN_MT_API_ENDPOINT
-          : process.env.MARIAN_MT_API_ENDPOINT;
+      if (!text || text.trim() === "") {
+        return {
+          text: "",
+          from: { language: { iso: options.from || "auto" } },
+          raw: {},
+        };
+      }
 
-      const apiKey =
-        typeof window !== "undefined"
-          ? (window as any).__ENV?.NEXT_PUBLIC_MARIAN_MT_API_KEY
-          : process.env.MARIAN_MT_API_KEY;
-
-      const defaultModel =
-        typeof window !== "undefined"
-          ? (window as any).__ENV?.NEXT_PUBLIC_MARIAN_MT_DEFAULT_MODEL
-          : process.env.MARIAN_MT_DEFAULT_MODEL || "opus-mt";
-
-      // Use the corsProxy if in browser environment
-      const endpoint =
-        typeof window !== "undefined"
-          ? `${corsProxy}/${apiEndpoint}`
-          : apiEndpoint;
+      // Use a backup API if the main one doesn't respond
+      const translateEndpoints = [
+        LIBRE_TRANSLATE_API,
+        "https://translate.argosopentech.com/translate",
+      ];
 
       // Prepare request data
       const requestData = {
-        text,
-        source_language: options.from || "auto",
-        target_language: options.to,
-        model: options.model || defaultModel,
-        format: options.format || "text",
+        q: text,
+        source: options.from || "auto",
+        target: options.to,
+        format: "text",
       };
 
-      // Set headers including API key if provided
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
+      let translatedText = text;
+      let translationSuccess = false;
 
-      if (apiKey) {
-        headers["Authorization"] = `Bearer ${apiKey}`;
+      // Try each LibreTranslate endpoint
+      for (const endpoint of translateEndpoints) {
+        try {
+          console.log(`Attempting translation with endpoint: ${endpoint}`);
+          const response = await axios.post(endpoint, requestData, {
+            headers: { "Content-Type": "application/json" },
+            timeout: 5000, // 5 second timeout
+          });
+
+          if (response.data && response.data.translatedText) {
+            translatedText = response.data.translatedText;
+            translationSuccess = true;
+            console.log("Translation successful");
+            break;
+          }
+        } catch (err) {
+          console.warn(`Translation failed with endpoint ${endpoint}:`, err);
+          // Continue to next endpoint
+        }
       }
 
-      // Make API request
-      const response = await axios.post(endpoint, requestData, { headers });
+      // If LibreTranslate fails, try using Google Translate API
+      if (!translationSuccess) {
+        console.log("LibreTranslate failed, trying Google Translate API");
+        try {
+          // For languages like Kannada that aren't supported by LibreTranslate
+          const googleUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${
+            options.from || "auto"
+          }&tl=${options.to}&dt=t&q=${encodeURIComponent(text)}`;
 
-      // Return in a format compatible with the previous Google Translate implementation
+          const response = await axios.get(googleUrl, {
+            timeout: 5000,
+          });
+
+          if (response.data && response.data[0] && response.data[0][0]) {
+            // Google Translate returns a complex nested array, we need to extract the translation
+            translatedText = response.data[0][0][0];
+            translationSuccess = true;
+            console.log("Google Translate translation successful");
+          }
+        } catch (err) {
+          console.warn("Google Translate API failed:", err);
+        }
+      }
+
+      // Return in a consistent format
       return {
-        text:
-          response.data.translated_text ||
-          response.data.translatedText ||
-          response.data.text,
+        text: translatedText,
         from: {
           language: {
-            iso:
-              response.data.detected_source_language || options.from || "auto",
+            iso: options.from || "auto",
           },
         },
-        raw: response.data,
+        raw: { translatedText },
       };
     } catch (error) {
-      console.error("MarianMT translation error:", error);
-      // Fallback with original text to prevent application from breaking
+      console.error("Translation error in setCORS:", error);
       return {
         text: text,
         from: {
@@ -166,18 +180,20 @@ export function setCORS(corsProxy: string) {
   };
 }
 
-// Export language codes if needed
+// Export language codes with added language support
 export const languages = {
   auto: "Automatic",
   en: "English",
+  kn: "Kannada",
+  hi: "Hindi",
   fr: "French",
   de: "German",
   ja: "Japanese",
   es: "Spanish",
-  hi: "Hindi",
   ru: "Russian",
   ar: "Arabic",
   zh: "Chinese",
   pt: "Portuguese",
-  // Add more languages as supported by your MarianMT implementation
+  te: "Telugu",
+  ta: "Tamil",
 };
