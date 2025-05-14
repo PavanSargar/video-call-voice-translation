@@ -36,13 +36,35 @@ const useTranscribe = ({
   }, [finalTranscript]);
 
   useEffect(() => {
+    if (!browserSupportsSpeechRecognition) {
+      console.error("Browser doesn't support speech recognition.");
+      return;
+    }
+
     if (audioEnabled) {
+      // Stop any ongoing speech recognition
+      SpeechRecognition.stopListening();
+
+      // Use the provided language code or default to English
+      const recognitionLanguage = languageCode || "en-US";
+      console.log(
+        `Starting speech recognition with language: ${recognitionLanguage}`
+      );
+
+      // Start listening with the specified language
       SpeechRecognition.startListening({
         continuous: true,
-        language: languageCode,
+        language: recognitionLanguage,
       });
+    } else {
+      SpeechRecognition.stopListening();
     }
-  }, [audioEnabled]);
+
+    // Clean up on unmount or when language/audio state changes
+    return () => {
+      SpeechRecognition.stopListening();
+    };
+  }, [audioEnabled, languageCode, browserSupportsSpeechRecognition]);
 
   return null;
 };

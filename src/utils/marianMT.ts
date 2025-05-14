@@ -99,11 +99,22 @@ export function setCORS(corsProxy: string = "") {
         "https://translate.argosopentech.com/translate",
       ];
 
+      // Extract source and target languages
+      const sourceLanguage = options.from || "auto";
+      const targetLanguage = options.to;
+
+      // Add special handling for non-English to English translations
+      const isTranslatingToEnglish = targetLanguage === "en";
+
+      console.log(
+        `Translation details: source=${sourceLanguage}, target=${targetLanguage}, toEnglish=${isTranslatingToEnglish}`
+      );
+
       // Prepare request data
       const requestData = {
         q: text,
-        source: options.from || "auto",
-        target: options.to,
+        source: sourceLanguage,
+        target: targetLanguage,
         format: "text",
       };
 
@@ -136,10 +147,12 @@ export function setCORS(corsProxy: string = "") {
         console.log("LibreTranslate failed, trying Google Translate API");
         try {
           // For languages like Kannada that aren't supported by LibreTranslate
-          const googleUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${
-            options.from || "auto"
-          }&tl=${options.to}&dt=t&q=${encodeURIComponent(text)}`;
+          // Google Translate API: sl=source language, tl=target language
+          const googleUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceLanguage}&tl=${targetLanguage}&dt=t&q=${encodeURIComponent(
+            text
+          )}`;
 
+          console.log(`Calling Google Translate API: ${googleUrl}`);
           const response = await axios.get(googleUrl, {
             timeout: 5000,
           });
@@ -148,7 +161,21 @@ export function setCORS(corsProxy: string = "") {
             // Google Translate returns a complex nested array, we need to extract the translation
             translatedText = response.data[0][0][0];
             translationSuccess = true;
-            console.log("Google Translate translation successful");
+            console.log(
+              "Google Translate translation successful:",
+              translatedText
+            );
+
+            // If the translated text is identical to input, it may indicate a translation failure
+            if (
+              translatedText === text &&
+              sourceLanguage !== targetLanguage &&
+              sourceLanguage !== "auto"
+            ) {
+              console.warn(
+                "Translation result identical to source - may indicate failure"
+              );
+            }
           }
         } catch (err) {
           console.warn("Google Translate API failed:", err);
@@ -160,7 +187,7 @@ export function setCORS(corsProxy: string = "") {
         text: translatedText,
         from: {
           language: {
-            iso: options.from || "auto",
+            iso: sourceLanguage,
           },
         },
         raw: { translatedText },

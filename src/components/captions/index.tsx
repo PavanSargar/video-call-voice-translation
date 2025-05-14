@@ -37,8 +37,19 @@ const Captions: React.FC<Props> = ({
         try {
           // Extract the language code from the full locale code (e.g., "kn-IN" -> "kn")
           const targetLang = languageCode.split("-")[0] || "en";
+
+          // Determine if we need to translate from a non-English language to English
+          // This happens when the message is in a non-English language and target is English
+          const isTranslatingToEnglish = targetLang === "en";
+
+          // For translating from other languages to English, we need to detect the source language
+          // We'll use "auto" for source which will let the translation API detect the language
+          const sourceLanguage = isTranslatingToEnglish ? "auto" : "auto";
+
           console.log(
-            `Translating to language: ${targetLang} (from ${languageCode})`
+            `Translating ${
+              isTranslatingToEnglish ? "to" : "from"
+            } English: source=${sourceLanguage}, target=${targetLang}`
           );
 
           // Log translation attempt
@@ -46,8 +57,9 @@ const Captions: React.FC<Props> = ({
             `Attempting to translate: "${transcriptionQueue[0].message}" to ${targetLang}`
           );
 
-          // Handle the message translation
+          // Handle the message translation with explicit source and target languages
           const res = await translate(transcriptionQueue[0].message, {
+            from: sourceLanguage,
             to: targetLang,
           });
 
